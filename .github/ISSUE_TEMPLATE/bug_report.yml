@@ -1,0 +1,111 @@
+name: Bug Report
+description: Report a defect in unifi-extract so it can be reproduced and fixed
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill out the
+        sections below so we can reproduce and fix the problem quickly.
+
+        > **Security issues:** do **not** open a public issue. Follow the
+        > [Security Policy](https://github.com/EvilBit-Labs/unifi_extract/blob/main/SECURITY.md) to report vulnerabilities privately.
+        >
+        > **Never attach a real backup file.** UniFi backups contain device
+        > credentials, WiFi passphrases, RADIUS secrets, and site topology.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checklist
+      options:
+        - label: I have searched [existing issues](https://github.com/EvilBit-Labs/unifi_extract/issues?q=is%3Aissue) and this is not a duplicate.
+          required: true
+        - label: I am running the latest release (or a recent commit) of unifi-extract.
+          required: true
+        - label: This report does not contain a real backup file or unredacted secrets from one.
+          required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands and inputs needed to trigger the bug.
+      placeholder: |
+        1. Run `unifi-extract list backup.unf`
+        2. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened. Include full error messages or stack traces.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: unifi-extract version
+      description: Output of `unifi-extract --version` (or the commit hash if built from source).
+      placeholder: "v0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: backup-type
+    attributes:
+      label: Backup type
+      options:
+        - .unf site export
+        - .unf autobackup
+        - .unifi UniFi OS console backup
+        - Not applicable
+    validations:
+      required: false
+  - type: input
+    id: controller-version
+    attributes:
+      label: UniFi controller / UniFi OS version that produced the backup
+      placeholder: "Network 9.0.114 / UniFi OS 4.2.23"
+    validations:
+      required: false
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows / WSL
+        - Other (note in additional context)
+    validations:
+      required: true
+  - type: input
+    id: go-version
+    attributes:
+      label: Go version (only if built from source)
+      description: Output of `go version`.
+      placeholder: "go version go1.26.4 darwin/arm64"
+    validations:
+      required: false
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Redacted output, logs, or anything else that helps. No real backup files.
+    validations:
+      required: false

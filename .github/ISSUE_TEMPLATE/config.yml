@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/EvilBit-Labs/unifi_extract/security/advisories/new
+    about: Report vulnerabilities privately — never in a public issue. See SECURITY.md.
+  - name: Backup format documentation
+    url: https://github.com/EvilBit-Labs/unifi_extract/blob/main/DECRYPTION.md
+    about: The .unf/.unifi encryption and container format reference.
