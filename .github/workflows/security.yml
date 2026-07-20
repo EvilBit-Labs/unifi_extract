@@ -46,7 +46,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run govulncheck
-        run: mise x -- govulncheck ./...
+        run: just vulncheck
 
   # ─────────────────────────────────────────────────────────────────────────
   # Trivy (filesystem) — dependency + misconfiguration scan
