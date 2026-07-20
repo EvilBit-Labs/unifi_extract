@@ -105,7 +105,21 @@ reviews:
       # noisy for Go because it counts test files. Disable in favor of lint.
       mode: "off"
   tools:
+    # Most tools are auto-selected by file type; these are pinned on so the
+    # security-relevant checks never silently drift off for this project.
     golangci-lint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    osv-scanner:
+      enabled: true
+    markdownlint:
+      enabled: true
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+    shellcheck:
       enabled: true
 chat:
   auto_reply: true
