@@ -102,5 +102,7 @@ go.sum -diff merge=union
 .env text eol=lf
 
 # Export ignore (excluded from archives)
-.github/ export-ignore
+# NOTE: never add `.github/ export-ignore` here — GitHub Actions, Dependabot,
+# and CodeQL default setup resolve repo content through the archive codepath,
+# and hiding .github/ makes every workflow fail with startup_failure.
 .claude/ export-ignore
