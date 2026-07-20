@@ -1,6 +1,6 @@
 module github.com/EvilBit-Labs/unifi_extract
 
-go 1.25.0
+go 1.26.5
 
 require (
 	github.com/charmbracelet/fang v1.0.0

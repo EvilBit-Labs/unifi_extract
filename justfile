@@ -63,6 +63,10 @@ cover:
 lint:
     {{ mise_exec }} golangci-lint run ./...
 
+[group('lint')]
+vulncheck:
+    {{ mise_exec }} govulncheck ./...
+
 # Apply golangci-lint autofixes and formatters
 [group('lint')]
 fmt:
@@ -73,6 +77,6 @@ fmt:
 tidy:
     {{ mise_exec }} go mod tidy
 
-# Full local gate before pushing: lint + test + build
+# Full local gate before pushing: lint + vulncheck + test + build
 [group('ci')]
-check: lint test build
+check: lint vulncheck test build
