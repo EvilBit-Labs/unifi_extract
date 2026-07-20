@@ -1,6 +1,6 @@
 # unifi-extract
 
-[![CI][ci-badge]][ci] [![Security][security-badge]][security] [![OpenSSF Scorecard][scorecard-badge]][scorecard] [![Go Report Card][goreportcard-badge]][goreportcard] [![Go Reference][goref-badge]][goref] [![Release][release-badge]][release] [![License][license-badge]][license]
+[![CI][ci-badge]][ci] [![Security][security-badge]][security] [![OpenSSF Scorecard][scorecard-badge]][scorecard] [![Go Reference][goref-badge]][goref] [![Release][release-badge]][release] [![License][license-badge]][license]
 
 Decrypt and explore UniFi backup files (`.unf` and `.unifi`) entirely on your own
 machine. No network access, no browser, no data leaving your device.
@@ -95,8 +95,6 @@ endorsed by Ubiquiti.
 [security]: https://github.com/EvilBit-Labs/unifi_extract/actions/workflows/security.yml
 [scorecard-badge]: https://api.scorecard.dev/projects/github.com/EvilBit-Labs/unifi_extract/badge
 [scorecard]: https://scorecard.dev/viewer/?uri=github.com/EvilBit-Labs/unifi_extract
-[goreportcard-badge]: https://goreportcard.com/badge/github.com/EvilBit-Labs/unifi_extract
-[goreportcard]: https://goreportcard.com/report/github.com/EvilBit-Labs/unifi_extract
 [goref-badge]: https://pkg.go.dev/badge/github.com/EvilBit-Labs/unifi_extract.svg
 [goref]: https://pkg.go.dev/github.com/EvilBit-Labs/unifi_extract
 [release-badge]: https://img.shields.io/github/v/release/EvilBit-Labs/unifi_extract?include_prereleases&sort=semver
