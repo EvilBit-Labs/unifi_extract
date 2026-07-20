@@ -19,7 +19,7 @@ what a backup contains. For the full format details, see
 ## Install
 
 ```bash
-go install github.com/UncleSp1d3r/unifi_extract@latest
+go install github.com/EvilBit-Labs/unifi_extract@latest
 ```
 
 Or build from source (dev tools are pinned via [mise](https://mise.jdx.dev)):
