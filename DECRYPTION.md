@@ -129,13 +129,23 @@ while i < len(buf):
 This CLI decodes each document to MongoDB **relaxed extended JSON**, one document
 per line (NDJSON). See `internal/mongodump/mongodump.go`.
 
-## Re-encryption (exporting a `.unf`)
+## Site export (re-encryption)
 
-A single site can also be re-exported as an importable `.unf`. That is the
-inverse of the `.unf` pipeline: build a DEFLATE ZIP, then AES-128-CBC
-encrypt with the same static key/IV, zero-padding the plaintext to a 16-byte
-multiple (NoPadding). This CLI implements the encryption primitive
-(`crypto.EncryptCBC`) but does not yet expose a site-export command.
+A single site can be extracted from a full backup and re-exported as an
+importable `.unf` (the `site-export` command). The MongoDB dump is a command
+stream — a `{__cmd:"select",collection:"X"}` document selects a collection and
+the following documents are its rows. Per-site collections carry a `site_id`
+string referencing the owning site's `_id`. The export:
+
+1. Emits the chosen site's own `site` document.
+2. For each of the ~48 per-site collections, emits only the rows whose
+   `site_id` matches the site's `_id` (an ObjectID compared as its hex string).
+3. Gzips that stream into a new `db.gz`, adds `version` and `timestamp`, and
+   copies any site-scoped assets (floorplans, portal files) into `sites/<name>/`.
+4. Builds a DEFLATE ZIP and AES-128-CBC encrypts it with the same static
+   `.unf` key/IV, zero-padding to a 16-byte multiple (NoPadding).
+
+See `internal/siteexport/siteexport.go`.
 
 ## Security notes
 
