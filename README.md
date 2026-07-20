@@ -35,10 +35,12 @@ just build       # -> bin/unifi-extract
 unifi-extract <command> [flags] <backup-file>
 
 Commands:
-  info      Summarize a backup (type, version, timestamp, entries, doc count)
-  decrypt   Write the raw decrypted container (.zip for .unf, .tar for .unifi)
-  extract   Unpack every file from the backup into a directory
-  mongo     Decode the MongoDB dump to newline-delimited JSON (NDJSON)
+  info          Summarize a backup (type, version, timestamp, entries, doc count)
+  decrypt       Write the raw decrypted container (.zip for .unf, .tar for .unifi)
+  extract       Unpack every file from the backup into a directory
+  mongo         Decode the MongoDB dump to newline-delimited JSON (NDJSON)
+  sites         List the sites contained in a full backup
+  site-export   Export one site from a full backup as an importable .unf
 
 Flags:
   -o, --out string    Output path (file or directory, per command)
@@ -61,6 +63,10 @@ unifi-extract extract console.unifi -o ./console
 # Dump the MongoDB collections as NDJSON, one document per line
 unifi-extract mongo backup.unf > docs.ndjson
 unifi-extract mongo console.unifi --pretty
+
+# List sites in a full backup, then export one as an importable .unf
+unifi-extract sites console.unifi
+unifi-extract site-export console.unifi --site Default -o default.unf
 ```
 
 ## Development
