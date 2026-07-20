@@ -125,7 +125,7 @@ func gatherSiteExtras(backup *extract.Backup, siteName string) []siteexport.Extr
 // sanitizeFilename makes a site name safe to use as a filename.
 func sanitizeFilename(name string) string {
 	replacer := strings.NewReplacer("/", "_", "\\", "_", " ", "_", ":", "_")
-	cleaned := strings.TrimSpace(replacer.Replace(name))
+	cleaned := replacer.Replace(strings.TrimSpace(name))
 	if cleaned == "" {
 		return "site"
 	}
