@@ -1,10 +1,11 @@
 [tools]
-cosign            = "3.1.2"
-go                = "latest"
-golangci-lint     = "latest"
-goreleaser        = "latest"
-just              = "latest"
-"pipx:pre-commit" = "4.6.0"
+cosign                                 = "3.1.2"
+go                                     = "latest"
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.6.0"
+golangci-lint                          = "latest"
+goreleaser                             = "latest"
+just                                   = "latest"
+"pipx:pre-commit"                      = "4.6.0"
 
 [settings]
 activate_aggressive = true
