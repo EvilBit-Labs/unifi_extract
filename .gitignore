@@ -1,0 +1,45 @@
+### Go ###
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+### VisualStudioCode ###
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+
+# Build output
+/bin/
+/dist/
+unifi-extract
+
+# Test / coverage artifacts
+coverage.out
+coverage.html
+*.test
+
+# Local backup samples — never commit real UniFi backups
+*.unf
+*.unifi
+
+# Editor / OS
+.DS_Store
