@@ -69,35 +69,6 @@ jobs:
         run: go test -cover ./...
 
   # ─────────────────────────────────────────────────────────────────────────
-  # Coverage - Generate and upload coverage report
-  # ─────────────────────────────────────────────────────────────────────────
-  coverage:
-    name: Coverage
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
-        with:
-          install: true
-          cache: true
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Run tests with coverage
-        run: just cover
-
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.out
-          # Dependabot PRs run without access to CODECOV_TOKEN, so the tokenless
-          # upload to a protected branch is rejected. Only enforce upload success
-          # where the token is available; tests themselves still run above and
-          # gate the job regardless of actor.
-          fail_ci_if_error: ${{ github.actor != 'dependabot[bot]' }}
-
-  # ─────────────────────────────────────────────────────────────────────────
   # Build - Verify the binary builds and cross-compiles
   # ─────────────────────────────────────────────────────────────────────────
   build:
