@@ -1,0 +1,80 @@
+#
+# Security scanning workflow for unifi-extract
+#
+# Runs continuous vulnerability and static-analysis scans:
+# - govulncheck: Go vulnerability database scan across the module graph
+# - Trivy (filesystem): SCA + misconfiguration scan of the working tree
+#
+# CodeQL is intentionally NOT a job here: GitHub's repo-level "default setup"
+# for code scanning covers CodeQL, and the advanced-setup CodeQL action rejects
+# SARIF uploads with "CodeQL analyses from advanced configurations cannot be
+# processed when the default setup is enabled." If default setup is ever
+# disabled, re-add a `codeql` job at that point.
+#
+# Triggers on pushes to main, all pull requests, and weekly on Mondays 06:00 UTC.
+# Findings are uploaded to the GitHub Security tab as SARIF where supported.
+#
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # Weekly on Mondays at 06:00 UTC
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # govulncheck — Go vulnerability database scan
+  # ─────────────────────────────────────────────────────────────────────────
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Trivy (filesystem) — dependency + misconfiguration scan
+  # ─────────────────────────────────────────────────────────────────────────
+  trivy-fs:
+    name: Trivy (filesystem)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs.sarif
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH,MEDIUM
+
+      - name: Upload Trivy SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs

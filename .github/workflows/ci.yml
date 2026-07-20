@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Lint - Fast feedback on code quality
+  # ─────────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+          cache: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run golangci-lint
+        run: just lint
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Test - Run tests across platforms
+  #
+  # Unix runners use the mise-managed toolchain via `just test` (race detector
+  # + coverage, matching the local gate). Windows skips mise/just and runs
+  # `go test` directly with setup-go — fewer moving parts on that runner, and
+  # the race detector there needs mingw-gcc which slows the job considerably.
+  # ─────────────────────────────────────────────────────────────────────────
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        if: runner.os != 'Windows'
+        with:
+          install: true
+          cache: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Run tests (Unix)
+        if: runner.os != 'Windows'
+        run: just test
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        run: go test -cover ./...
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Build - Verify the binary builds and cross-compiles
+  # ─────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # `just build` stamps the version from git describe
+
+      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+          cache: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build binary
+        run: just build
+
+      - name: Verify binary
+        run: ./bin/unifi-extract --version || ./bin/unifi-extract --help
+
+      - name: Cross-compile check
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o /dev/null .
+          GOOS=linux GOARCH=arm64 go build -o /dev/null .
+          GOOS=darwin GOARCH=amd64 go build -o /dev/null .
+          GOOS=darwin GOARCH=arm64 go build -o /dev/null .
+          GOOS=windows GOARCH=amd64 go build -o /dev/null .
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SBOM Generation
+  #
+  # Only runs on push-to-main: goreleaser's release-time SBOMs (see
+  # .goreleaser.yaml `sboms:`) are the authoritative SBOMs shipped with each
+  # release artifact; this job catches dependency drift between releases
+  # without adding SBOM time to every PR.
+  # ─────────────────────────────────────────────────────────────────────────
+  sbom:
+    name: Generate SBOM
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+          cache: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build binary
+        run: just build
+
+      - name: Generate SBOM from binary (CycloneDX)
+        uses: CycloneDX/gh-gomod-generate-sbom@efc74245d6802c8cefd925620515442756c70d8f # v2
+        with:
+          version: v1.9.0
+          args: bin -output sbom-binary.cyclonedx.json ./bin/unifi-extract
+
+      - name: Generate SBOM from modules (CycloneDX)
+        uses: CycloneDX/gh-gomod-generate-sbom@efc74245d6802c8cefd925620515442756c70d8f # v2
+        with:
+          version: v1.9.0
+          args: app -output sbom-modules.cyclonedx.json -json .
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-reports
+          path: |
+            sbom-binary.cyclonedx.json
+            sbom-modules.cyclonedx.json
+          retention-days: 90

@@ -1,0 +1,173 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+#
+# GoReleaser v2 configuration for unifi-extract
+# Cosign v3 keyless signing, CycloneDX SBOMs, reproducible builds.
+#
+# See also: .github/workflows/release.yml
+# Reference: https://github.com/goreleaser/example-supply-chain
+#
+# Intentionally omitted for now (add when the need is real):
+# - nfpms (deb/rpm/apk) — no packaging assets yet
+# - homebrew_casks / winget — no tap or fork configured
+# - dockers_v2 — no Dockerfile in this repo
+
+version: 2
+
+project_name: unifi-extract
+
+before:
+  hooks:
+    - go mod tidy
+
+# Build configuration
+# https://goreleaser.com/customization/builds/go/
+builds:
+  - id: unifi-extract
+    binary: unifi-extract
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      # Use CommitDate for reproducible builds
+      - >-
+        -s -w
+        -X main.version={{.Version}}
+    # Ensures mod timestamp matches commit for reproducibility
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+# Archive configuration
+# https://goreleaser.com/customization/archive/
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - DECRYPTION.md
+    # Preserve commit timestamp for reproducibility
+    builds_info:
+      mtime: "{{ .CommitTimestamp }}"
+
+# Checksum configuration
+# https://goreleaser.com/customization/checksum/
+checksum:
+  name_template: "{{ .ProjectName }}_checksums.txt"
+
+# Changelog grouped by conventional commit type
+# https://goreleaser.com/customization/changelog/
+changelog:
+  use: git
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^feat(\(.+\))?!?:'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^fix(\(.+\))?!?:'
+      order: 1
+    - title: Performance
+      regexp: '^perf(\(.+\))?!?:'
+      order: 2
+    - title: Other
+      order: 999
+  filters:
+    exclude:
+      - "^chore(deps)"
+      - "^docs"
+      - "^test"
+      - "^style"
+
+# Release configuration
+# https://goreleaser.com/customization/release/
+release:
+  github:
+    owner: "EvilBit-Labs"
+    name: "unifi_extract"
+  prerelease: auto
+  header: |
+    ## Release {{.Tag}}
+
+    This release includes the following changes:
+  footer: |
+    **Full Changelog**: https://github.com/EvilBit-Labs/unifi_extract/compare/{{.PreviousTag}}...{{.Tag}}
+
+    ## Security Information
+
+    This release includes:
+    - SBOM (Software Bill of Materials) generated with CycloneDX-gomod
+    - Build provenance attestation (GitHub attestations)
+    - Cosign keyless signatures (Sigstore)
+
+    ### Verify Signatures
+
+    ```bash
+    # Download the checksum file and its signature
+    wget https://github.com/EvilBit-Labs/unifi_extract/releases/download/{{.Tag}}/unifi-extract_checksums.txt
+    wget https://github.com/EvilBit-Labs/unifi_extract/releases/download/{{.Tag}}/unifi-extract_checksums.txt.sigstore.json
+
+    # Verify with cosign v3
+    cosign verify-blob \
+      --certificate-identity "https://github.com/EvilBit-Labs/unifi_extract/.github/workflows/release.yml@refs/tags/{{.Tag}}" \
+      --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+      --bundle unifi-extract_checksums.txt.sigstore.json \
+      unifi-extract_checksums.txt
+    ```
+
+    ### Verify Checksums
+
+    ```bash
+    sha256sum -c unifi-extract_checksums.txt --ignore-missing
+    ```
+
+# Source tarball (disabled - use git clone instead)
+source:
+  enabled: false
+
+# SBOM generation with CycloneDX-gomod
+# https://goreleaser.com/customization/sbom/
+sboms:
+  - id: binary-sbom
+    documents:
+      - "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.bom.json"
+    artifacts: binary
+    cmd: cyclonedx-gomod
+    args: ["bin", "-json", "-output", "$document", "$artifact"]
+  - id: module-sbom
+    documents:
+      - "{{ .ProjectName }}_{{ .Version }}_module.bom.json"
+    artifacts: any
+    cmd: cyclonedx-gomod
+    args: ["mod", "-licenses", "-std", "-json", "-output", "$document", "../"]
+
+# Artifact signing configuration
+# https://goreleaser.com/customization/sign/
+signs:
+  # Cosign v3 keyless signing for checksums (Sigstore transparency log)
+  # https://goreleaser.com/blog/cosign-v3/
+  - id: checksum-cosign
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - "sign-blob"
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true

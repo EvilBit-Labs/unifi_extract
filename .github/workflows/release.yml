@@ -1,0 +1,203 @@
+#
+# Release workflow for unifi-extract
+# Triggers on tag push or manual dispatch (snapshot mode)
+#
+# Uses:
+# - GoReleaser for building and publishing
+# - Cosign v3 for keyless signing (via Sigstore)
+# - CycloneDX-gomod for SBOM generation
+# - GitHub attestations for provenance
+#
+# Reference: https://github.com/goreleaser/example-supply-chain
+#
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g., v1.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write # needed to write releases
+  id-token: write # needed for keyless signing (OIDC)
+  attestations: write # needed for provenance
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    outputs:
+      artifacts: ${{ steps.goreleaser.outputs.artifacts }}
+      metadata: ${{ steps.goreleaser.outputs.metadata }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # needed for changelog generation
+
+      - name: Setup mise toolchain
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+          cache: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cyclonedx-gomod for SBOM generation
+        run: go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.10.0
+
+      - name: Remove mise go shim
+        # cyclonedx-gomod shells out to `go mod why` and resolves the mise
+        # shim instead of the real binary, causing trust/vendor failures.
+        # The real go is already on PATH via mise installs — the shim is
+        # redundant and harmful in goreleaser subprocesses.
+        run: rm -f "$HOME/.local/share/mise/shims/go"
+
+      - name: Run GoReleaser
+        id: goreleaser
+        # workflow_dispatch runs in --snapshot mode: nothing is published,
+        # which gives pre-release signal on config changes without tagging.
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: ${{ github.event_name == 'workflow_dispatch' && 'release --clean --snapshot' || 'release --clean' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Warn if snapshot mode
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "::warning::This was a snapshot build. No artifacts were published to GitHub Releases."
+          {
+            echo "## ⚠️ Snapshot Build"
+            echo ""
+            echo "This was a **snapshot** build triggered via workflow_dispatch."
+            echo "No artifacts were published."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*checksums*
+            dist/*.sigstore.json
+            dist/*.bom.json
+          retention-days: 5
+
+  # Generate build provenance attestation
+  provenance:
+    needs: goreleaser
+    if: github.event_name != 'workflow_dispatch' # snapshot builds publish nothing to attest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist
+
+      - name: Generate attestation for checksums
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: dist/*checksums*.txt
+
+      - name: Generate attestation for archives
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+
+  # Verify the release artifacts
+  verify:
+    needs: [goreleaser, provenance]
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      # Use environment variables for safe interpolation
+      GITHUB_REF: ${{ github.ref }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup mise toolchain
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+          cache: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist
+
+      - name: Verify checksum signature
+        run: |
+          cd dist
+          # Find the checksums file and its signature
+          CHECKSUMS=$(find . -maxdepth 1 -name '*checksums*.txt' -print -quit | sed 's|^\./||')
+          SIGNATURE="${CHECKSUMS}.sigstore.json"
+
+          if [[ -n "$CHECKSUMS" && -f "$CHECKSUMS" && -f "$SIGNATURE" ]]; then
+            echo "Verifying signature for $CHECKSUMS"
+            cosign verify-blob \
+              --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
+              --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+              --bundle "$SIGNATURE" \
+              "$CHECKSUMS"
+            echo "Signature verification passed"
+          else
+            echo "ERROR: Checksums or signature file not found"
+            echo "CHECKSUMS=$CHECKSUMS SIGNATURE=$SIGNATURE"
+            ls -la
+            exit 1
+          fi
+
+      - name: Verify checksums
+        run: |
+          cd dist
+          CHECKSUMS=$(find . -maxdepth 1 -name '*checksums*.txt' -print -quit | sed 's|^\./||')
+          if [[ -n "$CHECKSUMS" && -f "$CHECKSUMS" ]]; then
+            echo "Verifying file checksums..."
+            sha256sum -c "$CHECKSUMS" --ignore-missing
+            echo "Checksum verification complete"
+          else
+            echo "ERROR: Checksums file not found"
+            exit 1
+          fi
+
+      - name: Verify attestations
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd dist
+          FAILED=0
+          for file in ./*.tar.gz ./*.zip; do
+            if [[ -f "$file" ]]; then
+              echo "Verifying attestation for $file"
+              if ! gh attestation verify "$file" --owner "${GITHUB_REPOSITORY_OWNER}"; then
+                echo "::error::Attestation verification FAILED for $file"
+                FAILED=1
+              fi
+            fi
+          done
+          if [[ "$FAILED" -ne 0 ]]; then
+            echo "::error::One or more attestation verifications failed"
+            exit 1
+          fi
