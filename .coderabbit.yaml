@@ -1,0 +1,111 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+tone_instructions: >-
+  Offline CLI for inspecting your own UniFi backups; no network surface.
+  Prioritize decryption/format fidelity, safe extraction (no zip-slip), never
+  leaking backup secrets, clear actionable CLI errors, and simple idiomatic Go.
+early_access: true
+inheritance: true
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary_in_walkthrough: true
+  auto_title_instructions: "Use conventional commit format: <type>(<scope>): <description>"
+  commit_status: false
+  collapse_walkthrough: false
+  labeling_instructions:
+    - label: type:feature
+      instructions: Use for new functionality and enhancements
+    - label: type:bug
+      instructions: Use for bug fixes and defect corrections
+    - label: go
+      instructions: Use for Go code changes and modifications
+    - label: dependencies
+      instructions: Use for dependency updates and package changes
+    - label: documentation
+      instructions: Use for documentation improvements and updates
+    - label: testing
+      instructions: Use for test-related changes and test infrastructure
+    - label: security
+      instructions: Use for cryptography, archive-extraction safety, or secret-handling changes
+    - label: performance
+      instructions: Use for performance optimizations and improvements
+    - label: refactoring
+      instructions: Use for restructuring existing code without changing behavior
+    - label: ci
+      instructions: Use for CI/CD and GitHub Actions changes
+    - label: breaking_change
+      instructions: Use for incompatible changes to the CLI, output formats, or public APIs
+  auto_apply_labels: true
+  path_instructions:
+    - path: internal/crypto/**/*.go
+      instructions: |-
+        Cryptography: correctness is critical and mistakes fail silently.
+        - Verify AES-CBC uses NoPadding and never strips PKCS#7 (plaintext is zero-padded to a block multiple).
+        - Confirm key and IV lengths are validated before use and errors are returned, not panics.
+        - The static keys are intentional (backups use hard-coded keys); do not flag them as leaked secrets.
+        - Ensure key/IV/plaintext material is never written to logs or error strings.
+    - path: internal/extract/**/*.go
+      instructions: |-
+        Container parsing (.unf ZIP, .unifi gzip->tar): decrypted input is untrusted.
+        - Verify the ZIP EOCD rebuild logic and bounds checks against malformed offsets.
+        - Confirm gzip uses Multistream(false) to tolerate trailing NoPadding zero bytes.
+        - Ensure archive entry names are treated as untrusted (guard against path traversal downstream).
+        - Check size/length guards so a crafted backup cannot cause unbounded allocation.
+    - path: internal/mongodump/**/*.go
+      instructions: |-
+        Concatenated-BSON decoding: every document length prefix comes from untrusted input.
+        - Verify each int32 length is bounds-checked before slicing (no out-of-range reads).
+        - Confirm the sanity ceiling and truncation errors are correct and clear.
+    - path: internal/siteexport/**/*.go
+      instructions: |-
+        Site export: a bug here can leak another site's data into an exported .unf.
+        - Verify per-site rows are filtered strictly by site_id matching the site's _id (ObjectID as hex).
+        - Confirm the rebuilt command stream and re-encryption match the .unf format faithfully.
+    - path: internal/cli/**/*.go
+      instructions: |-
+        CLI (cobra + charmbracelet/fang): focus on user experience and safety.
+        - Ensure error messages are actionable and do not expose secret backup contents.
+        - Confirm files are written with 0o600 permissions and output paths are sanitized.
+        - Verify flag handling and that commands write to cmd.OutOrStdout/ErrOrStderr (testable).
+    - path: "**/*_test.go"
+      instructions: |-
+        Tests: prefer meaningful, table-driven tests; same-package tests are intentional.
+        - Verify tests cover real edge cases (malformed input, wrong type, traversal) not framework behavior.
+        - Round-trip tests (build -> encrypt -> decrypt -> assert) are the primary correctness signal here.
+        - Tests may live in the same package to exercise unexported helpers; do not flag that.
+    - path: "**/*.md"
+      instructions: |-
+        Documentation: accuracy over prose.
+        - Verify DECRYPTION.md constants, format layouts, and pipeline steps match the code.
+        - Confirm README examples are runnable and match current command/flag names.
+    - path: "*.go"
+      instructions: |-
+        General Go: apply simplicity and idiom.
+        - Prefer standard-library patterns and small, single-purpose functions.
+        - Wrap errors with context; avoid defensive programming and premature optimization.
+        - Ensure exported identifiers carry doc comments starting with the identifier name.
+  auto_review:
+    ignore_title_keywords:
+      - WIP
+    base_branches:
+      - main
+    ignore_usernames:
+      - dependabot[bot]
+  finishing_touches:
+    unit_tests:
+      enabled: false
+    simplify:
+      enabled: true
+  pre_merge_checks:
+    title:
+      requirements: Must follow conventional commit format
+    docstrings:
+      # golangci-lint (revive's `exported` rule) is the Go-aware authority on
+      # exported-symbol documentation; the built-in repo-wide percentage is
+      # noisy for Go because it counts test files. Disable in favor of lint.
+      mode: "off"
+  tools:
+    golangci-lint:
+      enabled: true
+chat:
+  auto_reply: true
