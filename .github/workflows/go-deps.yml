@@ -4,13 +4,16 @@ on:
     branches:
       - main
 
-# The API requires write permission on the repository to submit dependencies
+# Least privilege: top-level read-only; the submission job elevates to
+# contents: write, which the Dependency Graph submission API requires.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   go-action-detection:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to submit the dependency snapshot to the API
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
