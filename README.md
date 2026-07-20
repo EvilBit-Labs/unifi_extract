@@ -5,10 +5,27 @@
 Decrypt and explore UniFi backup files (`.unf` and `.unifi`) entirely on your own
 machine. No network access, no browser, no data leaving your device.
 
-UniFi backups are encrypted with a static, hard-coded key — there is no per-user
+UniFi backups are encrypted with a static, hard-coded key, not a per-user
 secret. This tool reproduces the decryption locally so you can inspect exactly
 what a backup contains. For the full format details, see
 [DECRYPTION.md](DECRYPTION.md).
+
+## Why decrypt a backup?
+
+A UniFi backup is an encrypted archive of the controller's whole state: device
+configs, WLANs, users, and the MongoDB or PostgreSQL database behind them.
+Reading any of it normally means restoring the entire backup onto a live
+controller. This tool reads the archive directly, which helps when you want to:
+
+- Recover one value without a full restore. Pull a single WLAN passphrase,
+  RADIUS secret, or device setting from an old backup without standing up a
+  controller or overwriting your current config.
+- Investigate an incident. See what a controller held at backup time for DFIR
+  work, without touching production.
+- Work an authorized engagement. A recovered backup yields password hashes,
+  PSKs, TLS private keys, and API tokens straight from the file.
+- Analyze and archive offline. Inspect backups on an air-gapped host and keep
+  decrypted snapshots for later review, with no vendor tooling or network.
 
 ## Features
 
@@ -81,7 +98,7 @@ just lint    # golangci-lint run ./...
 
 ## Security
 
-Backup files decrypt with a key shared across all installations — the encryption
+Backup files decrypt with a key shared across all installations. The encryption
 is obfuscation, not confidentiality. Anyone with the file can read it. Extracted
 output contains secrets (password hashes, WLAN PSKs, RADIUS secrets, TLS private
 keys, API tokens); handle it accordingly.
