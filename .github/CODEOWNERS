@@ -1,0 +1,18 @@
+# Code ownership for unifi-extract
+#
+# Sole maintainer: this file documents ownership and satisfies the OpenSSF
+# Scorecard Branch-Protection check that looks for a CODEOWNERS file. It is
+# NOT a hard self-review gate — GitHub blocks self-approval, so do not enable
+# "require review from Code Owners" against the maintainer's own PRs (or keep
+# admin bypass). Scope is intentionally limited to Go code and CI/config.
+
+# Go source
+*.go        @unclesp1d3r
+/go.mod     @unclesp1d3r
+/go.sum     @unclesp1d3r
+
+# GitHub Actions workflows
+/.github/workflows/     @unclesp1d3r
+
+# Funding config
+/.github/FUNDING.yml    @unclesp1d3r
