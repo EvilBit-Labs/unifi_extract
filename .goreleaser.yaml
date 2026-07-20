@@ -8,7 +8,7 @@
 #
 # Intentionally omitted for now (add when the need is real):
 # - nfpms (deb/rpm/apk) — no packaging assets yet
-# - homebrew_casks / winget — no tap or fork configured
+# - winget — no EvilBit-Labs/winget-pkgs fork configured
 # - dockers_v2 — no Dockerfile in this repo
 
 version: 2
@@ -139,6 +139,24 @@ release:
 # Source tarball (disabled - use git clone instead)
 source:
   enabled: false
+
+# Homebrew cask via the EvilBit-Labs tap
+# https://goreleaser.com/customization/homebrew_casks/
+homebrew_casks:
+  - name: unifi-extract
+    repository:
+      owner: EvilBit-Labs
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/EvilBit-Labs/unifi_extract
+    description: "Offline CLI to decrypt and explore UniFi backup files (.unf/.unifi)"
+    binaries:
+      - unifi-extract
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "Cask update for {{ .ProjectName }} version {{ .Tag }}"
 
 # SBOM generation with CycloneDX-gomod
 # https://goreleaser.com/customization/sbom/
