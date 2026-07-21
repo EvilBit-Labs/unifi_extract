@@ -41,12 +41,15 @@ const (
 // AES IV (the remainder is ciphertext).
 const unifiIVSize = 16
 
-// maxDecompressedSize caps the output of any single decompression step (a zip
-// entry, a tar entry, or a gzip stream). UniFi backups decrypt with static,
-// published keys, so a crafted archive can otherwise decompression-bomb the
-// process to OOM. This ceiling is far above any real backup while still
-// bounding the allocation. It follows the same defense-in-depth pattern as
-// mongodump's maxDocSize, at a different magnitude for a different structure.
+// maxDecompressedSize caps the total decompressed output taken from one backup:
+// a whole gzip stream, or the running sum across all entries of a zip or tar
+// archive. UniFi backups decrypt with static, published keys, so a crafted
+// archive can otherwise decompression-bomb the process to OOM — with a single
+// huge entry, or with many entries that each stay under the ceiling yet
+// collectively exhaust memory (readZip/readTar retain every entry). The ceiling
+// is far above any real backup while still bounding the allocation. It follows
+// the same defense-in-depth pattern as mongodump's maxDocSize, at a different
+// magnitude for a different structure.
 //
 // It is a var rather than a const only so tests can lower it to exercise the
 // ceiling end-to-end without allocating gigabytes; production never reassigns
@@ -185,31 +188,34 @@ func readZip(data []byte) ([]Entry, error) {
 		return nil, fmt.Errorf("open decrypted ZIP: %w", err)
 	}
 	var out []Entry
+	remaining := maxDecompressedSize
 	for _, f := range zr.File {
 		if f.FileInfo().IsDir() {
 			continue
 		}
-		content, err := readZipEntry(f)
+		content, err := readZipEntry(f, remaining)
 		if err != nil {
 			return nil, fmt.Errorf("read zip entry %s: %w", f.Name, err)
 		}
+		remaining -= int64(len(content))
 		out = append(out, Entry{Name: f.Name, Data: content})
 	}
 	return out, nil
 }
 
-func readZipEntry(f *zip.File) ([]byte, error) {
+func readZipEntry(f *zip.File, limit int64) ([]byte, error) {
 	rc, err := f.Open()
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rc.Close() }()
-	return readAllLimited(rc, maxDecompressedSize)
+	return readAllLimited(rc, limit)
 }
 
 func readTar(data []byte) ([]Entry, error) {
 	tr := tar.NewReader(bytes.NewReader(data))
 	var out []Entry
+	remaining := maxDecompressedSize
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
@@ -221,10 +227,11 @@ func readTar(data []byte) ([]Entry, error) {
 		if !hdr.FileInfo().Mode().IsRegular() {
 			continue
 		}
-		content, err := readAllLimited(tr, maxDecompressedSize)
+		content, err := readAllLimited(tr, remaining)
 		if err != nil {
 			return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, err)
 		}
+		remaining -= int64(len(content))
 		out = append(out, Entry{Name: hdr.Name, Data: content})
 	}
 	return out, nil
