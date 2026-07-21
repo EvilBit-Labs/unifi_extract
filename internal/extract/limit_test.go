@@ -89,3 +89,42 @@ func TestDecompressionCeilingWiring(t *testing.T) {
 		}
 	})
 }
+
+// TestDecompressionBudgetIsArchiveWide verifies the ceiling is a single budget
+// spanning all entries, not a per-entry limit: many entries that are each under
+// the ceiling but collectively exceed it must be rejected (readZip/readTar
+// retain every entry, so the aggregate is what can exhaust memory).
+func TestDecompressionBudgetIsArchiveWide(t *testing.T) {
+	const perEntry = 100
+	orig := maxDecompressedSize
+	maxDecompressedSize = 150 // admits one 100-byte entry, not two
+	t.Cleanup(func() { maxDecompressedSize = orig })
+
+	entry := strings.Repeat("x", perEntry)
+
+	t.Run("zip", func(t *testing.T) {
+		zbytes := makeZip(t, map[string]string{"a.txt": entry, "b.txt": entry})
+		if _, err := readZip(zbytes); err == nil {
+			t.Error("expected readZip to reject entries whose combined size exceeds the budget")
+		}
+	})
+
+	t.Run("tar", func(t *testing.T) {
+		var buf bytes.Buffer
+		tw := tar.NewWriter(&buf)
+		for _, name := range []string{"a", "b"} {
+			if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o600, Size: int64(len(entry))}); err != nil {
+				t.Fatalf("tar header: %v", err)
+			}
+			if _, err := tw.Write([]byte(entry)); err != nil {
+				t.Fatalf("tar write: %v", err)
+			}
+		}
+		if err := tw.Close(); err != nil {
+			t.Fatalf("tar close: %v", err)
+		}
+		if _, err := readTar(buf.Bytes()); err == nil {
+			t.Error("expected readTar to reject entries whose combined size exceeds the budget")
+		}
+	})
+}
