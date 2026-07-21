@@ -211,17 +211,34 @@ func writeSelect(buf *bytes.Buffer, collection string) error {
 // root when later extracted (path traversal or an absolute path). Extra files
 // are copied from the source backup with backup-derived names, so a crafted
 // backup must not be able to bake a "../"-bearing entry into an exported .unf.
+// Absolute forms are rejected regardless of host OS: POSIX ("/x"), UNC
+// ("\\server\x", which normalizes to a leading "/") and Windows drive-letter
+// ("C:\x" or drive-relative "C:x").
 func unsafeArchiveName(name string) bool {
 	if name == "" {
 		return true
 	}
 	// Normalize Windows separators so "..\.." is caught alongside "../..".
 	normalized := strings.ReplaceAll(name, `\`, "/")
-	if strings.HasPrefix(normalized, "/") { // absolute path
+	if strings.HasPrefix(normalized, "/") { // POSIX absolute or UNC path
+		return true
+	}
+	if hasDriveLetterPrefix(normalized) { // Windows "C:..." absolute/relative
 		return true
 	}
 	clean := path.Clean(normalized)
 	return clean == ".." || strings.HasPrefix(clean, "../")
+}
+
+// hasDriveLetterPrefix reports whether name begins with a Windows drive-letter
+// designator like "C:". Detected on every host, not just Windows, so an export
+// built on Linux/macOS still cannot carry a drive-qualified entry name.
+func hasDriveLetterPrefix(name string) bool {
+	if len(name) < 2 || name[1] != ':' {
+		return false
+	}
+	c := name[0]
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
 }
 
 // valueToString mirrors JavaScript String(v) for the id fields we key on:
