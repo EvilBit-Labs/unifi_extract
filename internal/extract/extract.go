@@ -41,6 +41,35 @@ const (
 // AES IV (the remainder is ciphertext).
 const unifiIVSize = 16
 
+// maxDecompressedSize caps the total decompressed output taken from one backup:
+// a whole gzip stream, or the running sum across all entries of a zip or tar
+// archive. UniFi backups decrypt with static, published keys, so a crafted
+// archive can otherwise decompression-bomb the process to OOM — with a single
+// huge entry, or with many entries that each stay under the ceiling yet
+// collectively exhaust memory (readZip/readTar retain every entry). The ceiling
+// is far above any real backup while still bounding the allocation. It follows
+// the same defense-in-depth pattern as mongodump's maxDocSize, at a different
+// magnitude for a different structure.
+//
+// It is a var rather than a const only so tests can lower it to exercise the
+// ceiling end-to-end without allocating gigabytes; production never reassigns
+// it.
+var maxDecompressedSize int64 = 4 << 30 // 4 GiB
+
+// readAllLimited reads r fully but fails once the output would exceed max
+// bytes, guarding against decompression bombs instead of using an unbounded
+// io.ReadAll.
+func readAllLimited(r io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("decompressed data exceeds %d-byte ceiling (possible decompression bomb)", limit)
+	}
+	return data, nil
+}
+
 // Entry is a single file inside a decrypted backup container.
 type Entry struct {
 	Name string
@@ -159,31 +188,34 @@ func readZip(data []byte) ([]Entry, error) {
 		return nil, fmt.Errorf("open decrypted ZIP: %w", err)
 	}
 	var out []Entry
+	remaining := maxDecompressedSize
 	for _, f := range zr.File {
 		if f.FileInfo().IsDir() {
 			continue
 		}
-		content, err := readZipEntry(f)
+		content, err := readZipEntry(f, remaining)
 		if err != nil {
 			return nil, fmt.Errorf("read zip entry %s: %w", f.Name, err)
 		}
+		remaining -= int64(len(content))
 		out = append(out, Entry{Name: f.Name, Data: content})
 	}
 	return out, nil
 }
 
-func readZipEntry(f *zip.File) ([]byte, error) {
+func readZipEntry(f *zip.File, limit int64) ([]byte, error) {
 	rc, err := f.Open()
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rc.Close() }()
-	return io.ReadAll(rc)
+	return readAllLimited(rc, limit)
 }
 
 func readTar(data []byte) ([]Entry, error) {
 	tr := tar.NewReader(bytes.NewReader(data))
 	var out []Entry
+	remaining := maxDecompressedSize
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
@@ -195,10 +227,11 @@ func readTar(data []byte) ([]Entry, error) {
 		if !hdr.FileInfo().Mode().IsRegular() {
 			continue
 		}
-		content, err := io.ReadAll(tr)
+		content, err := readAllLimited(tr, remaining)
 		if err != nil {
 			return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, err)
 		}
+		remaining -= int64(len(content))
 		out = append(out, Entry{Name: hdr.Name, Data: content})
 	}
 	return out, nil
@@ -214,5 +247,5 @@ func gunzip(data []byte) ([]byte, error) {
 	// Disable multistream so the reader stops at the first member's end
 	// instead of trying to parse the padding as another gzip member.
 	gr.Multistream(false)
-	return io.ReadAll(gr)
+	return readAllLimited(gr, maxDecompressedSize)
 }

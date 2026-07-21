@@ -1,4 +1,4 @@
-package siteexport_test
+package siteexport
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/EvilBit-Labs/unifi_extract/internal/extract"
-	"github.com/EvilBit-Labs/unifi_extract/internal/siteexport"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -58,7 +57,7 @@ func buildDump(t *testing.T, siteA, siteB bson.ObjectID) []byte {
 
 func TestParseDiscoversSites(t *testing.T) {
 	a, b := bson.NewObjectID(), bson.NewObjectID()
-	parsed, err := siteexport.Parse(buildDump(t, a, b))
+	parsed, err := Parse(buildDump(t, a, b))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
@@ -75,7 +74,7 @@ func TestParseDiscoversSites(t *testing.T) {
 
 func TestBuildUnfExportsOnlySelectedSite(t *testing.T) {
 	a, b := bson.NewObjectID(), bson.NewObjectID()
-	parsed, err := siteexport.Parse(buildDump(t, a, b))
+	parsed, err := Parse(buildDump(t, a, b))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
@@ -106,7 +105,7 @@ func TestBuildUnfExportsOnlySelectedSite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MongoDump: %v", err)
 	}
-	reparsed, err := siteexport.Parse(dump)
+	reparsed, err := Parse(dump)
 	if err != nil {
 		t.Fatalf("re-parse: %v", err)
 	}
@@ -122,9 +121,80 @@ func TestBuildUnfExportsOnlySelectedSite(t *testing.T) {
 	}
 }
 
+func TestBuildUnfRejectsUnsafeExtraName(t *testing.T) {
+	a, b := bson.NewObjectID(), bson.NewObjectID()
+	parsed, err := Parse(buildDump(t, a, b))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	site, err := parsed.FindSite("alpha")
+	if err != nil {
+		t.Fatalf("FindSite: %v", err)
+	}
+
+	for _, tc := range unsafeArchiveNames {
+		t.Run(tc.label, func(t *testing.T) {
+			extras := []Extra{{Name: tc.name, Data: []byte("x")}}
+			if _, err := parsed.BuildUnf(site, "9.0.0", 1721400000000, extras); err == nil {
+				t.Errorf("BuildUnf accepted unsafe extra name %q", tc.name)
+			}
+		})
+	}
+
+	// A legitimately nested (non-escaping) name must still be accepted.
+	safe := []Extra{{Name: "sites/alpha/floor.png", Data: []byte("x")}}
+	if _, err := parsed.BuildUnf(site, "9.0.0", 1721400000000, safe); err != nil {
+		t.Errorf("BuildUnf rejected a safe nested extra name: %v", err)
+	}
+}
+
+// unsafeArchiveNames enumerates entry names that must never be written into an
+// exported .unf. Shared by the BuildUnf integration test above and the direct
+// unsafeArchiveName unit test below. Each has an explicit label so the empty
+// case reads clearly as a subtest name.
+var unsafeArchiveNames = []struct {
+	label string
+	name  string
+}{
+	{"empty", ""},
+	{"dot-dot prefix", "../evil"},
+	{"nested escape", "sites/../../etc/passwd"},
+	{"posix absolute", "/abs/path"},
+	{"backslash traversal", `..\..\win`},
+	{"windows drive absolute", `C:\Windows\win.ini`},
+	{"windows drive relative", "C:evil.dll"},
+	{"unc path", `\\server\share\x`},
+}
+
+func TestUnsafeArchiveName(t *testing.T) {
+	for _, tc := range unsafeArchiveNames {
+		t.Run("unsafe/"+tc.label, func(t *testing.T) {
+			if !unsafeArchiveName(tc.name) {
+				t.Errorf("unsafeArchiveName(%q) = false, want true", tc.name)
+			}
+		})
+	}
+
+	safe := []struct {
+		label string
+		name  string
+	}{
+		{"plain file", "db.gz"},
+		{"nested path", "sites/alpha/floor.png"},
+		{"internal dot-dot staying in root", "sites/alpha/../beta/x"},
+	}
+	for _, tc := range safe {
+		t.Run("safe/"+tc.label, func(t *testing.T) {
+			if unsafeArchiveName(tc.name) {
+				t.Errorf("unsafeArchiveName(%q) = true, want false", tc.name)
+			}
+		})
+	}
+}
+
 func TestFindSiteErrors(t *testing.T) {
 	a, b := bson.NewObjectID(), bson.NewObjectID()
-	parsed, err := siteexport.Parse(buildDump(t, a, b))
+	parsed, err := Parse(buildDump(t, a, b))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}

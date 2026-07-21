@@ -13,6 +13,9 @@ const (
 	eocdLen = 22
 	// eocdSignature marks the start of that record ("PK\05\06").
 	eocdSignature = 0x06054b50
+	// centralHeaderLen is the fixed size of a ZIP central-directory file header,
+	// before its variable-length name/extra/comment fields.
+	centralHeaderLen = 46
 )
 
 // ZIP record signatures (little-endian on disk).
@@ -41,10 +44,18 @@ func repairEOCD(data []byte) ([]byte, error) {
 		}
 		s, count := start, 0
 		for s < end && matchAt(data, s, sigCentral) {
+			// Bail out if the fixed header would run past the buffer so the
+			// length-field reads below can never slice out of range on a crafted
+			// or truncated archive. The break rejects this start candidate; the
+			// outer loop tries the next one, and only after all candidates are
+			// exhausted does repairEOCD return the contiguous-directory error.
+			if s+centralHeaderLen > len(data) {
+				break
+			}
 			nameLen := int(binary.LittleEndian.Uint16(data[s+28:]))
 			extraLen := int(binary.LittleEndian.Uint16(data[s+30:]))
 			commentLen := int(binary.LittleEndian.Uint16(data[s+32:]))
-			s += 46 + nameLen + extraLen + commentLen
+			s += centralHeaderLen + nameLen + extraLen + commentLen
 			count++
 		}
 		if s == end {
@@ -97,11 +108,11 @@ func lastIndexOf(b, sig []byte) int {
 	return -1
 }
 
-// allIndexesOf returns every index at which sig occurs. It mirrors the tool's
-// findAllIndexesOf, whose loop bound excludes the final possible position.
+// allIndexesOf returns every index at which sig occurs, including a match at
+// the final valid position len(b)-len(sig) (symmetric with lastIndexOf).
 func allIndexesOf(b, sig []byte) []int {
 	var out []int
-	for i := range len(b) - len(sig) {
+	for i := 0; i <= len(b)-len(sig); i++ {
 		if matchAt(b, i, sig) {
 			out = append(out, i)
 		}

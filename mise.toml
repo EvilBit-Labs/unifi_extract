@@ -2,9 +2,9 @@
 cosign                                 = "3.1.2"
 go                                     = "1.26.5"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.6.0"
-golangci-lint                          = "latest"
-goreleaser                             = "latest"
-just                                   = "latest"
+golangci-lint                          = "2.12.2"
+goreleaser                             = "2.17.0"
+just                                   = "1.56.0"
 "pipx:pre-commit"                      = "4.6.0"
 
 [settings]
