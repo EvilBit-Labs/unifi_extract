@@ -41,6 +41,27 @@ const (
 // AES IV (the remainder is ciphertext).
 const unifiIVSize = 16
 
+// maxDecompressedSize caps the output of any single decompression step (a zip
+// entry, a tar entry, or a gzip stream). UniFi backups decrypt with static,
+// published keys, so a crafted archive can otherwise decompression-bomb the
+// process to OOM. This ceiling is far above any real backup while still
+// bounding the allocation. Mirrors mongodump's per-document maxDocSize.
+const maxDecompressedSize = 4 << 30 // 4 GiB
+
+// readAllLimited reads r fully but fails once the output would exceed max
+// bytes, guarding against decompression bombs instead of using an unbounded
+// io.ReadAll.
+func readAllLimited(r io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("decompressed data exceeds %d-byte ceiling (possible decompression bomb)", limit)
+	}
+	return data, nil
+}
+
 // Entry is a single file inside a decrypted backup container.
 type Entry struct {
 	Name string
@@ -178,7 +199,7 @@ func readZipEntry(f *zip.File) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = rc.Close() }()
-	return io.ReadAll(rc)
+	return readAllLimited(rc, maxDecompressedSize)
 }
 
 func readTar(data []byte) ([]Entry, error) {
@@ -195,7 +216,7 @@ func readTar(data []byte) ([]Entry, error) {
 		if !hdr.FileInfo().Mode().IsRegular() {
 			continue
 		}
-		content, err := io.ReadAll(tr)
+		content, err := readAllLimited(tr, maxDecompressedSize)
 		if err != nil {
 			return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, err)
 		}
@@ -214,5 +235,5 @@ func gunzip(data []byte) ([]byte, error) {
 	// Disable multistream so the reader stops at the first member's end
 	// instead of trying to parse the padding as another gzip member.
 	gr.Multistream(false)
-	return io.ReadAll(gr)
+	return readAllLimited(gr, maxDecompressedSize)
 }

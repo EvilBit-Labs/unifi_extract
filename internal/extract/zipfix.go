@@ -41,6 +41,14 @@ func repairEOCD(data []byte) ([]byte, error) {
 		}
 		s, count := start, 0
 		for s < end && matchAt(data, s, sigCentral) {
+			// A central-directory header is a fixed 46 bytes before its
+			// variable name/extra/comment fields. Bail out if the fixed header
+			// would run past the buffer so the length-field reads below can
+			// never slice out of range on a crafted or truncated archive; the
+			// outer loop then falls through to the contiguous-directory error.
+			if s+46 > len(data) {
+				break
+			}
 			nameLen := int(binary.LittleEndian.Uint16(data[s+28:]))
 			extraLen := int(binary.LittleEndian.Uint16(data[s+30:]))
 			commentLen := int(binary.LittleEndian.Uint16(data[s+32:]))
@@ -97,11 +105,11 @@ func lastIndexOf(b, sig []byte) int {
 	return -1
 }
 
-// allIndexesOf returns every index at which sig occurs. It mirrors the tool's
-// findAllIndexesOf, whose loop bound excludes the final possible position.
+// allIndexesOf returns every index at which sig occurs, including a match at
+// the final valid position len(b)-len(sig) (symmetric with lastIndexOf).
 func allIndexesOf(b, sig []byte) []int {
 	var out []int
-	for i := range len(b) - len(sig) {
+	for i := 0; i <= len(b)-len(sig); i++ {
 		if matchAt(b, i, sig) {
 			out = append(out, i)
 		}
