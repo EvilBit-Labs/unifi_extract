@@ -13,7 +13,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"path"
 	"strconv"
+	"strings"
 
 	"github.com/EvilBit-Labs/unifi_extract/internal/crypto"
 	"github.com/EvilBit-Labs/unifi_extract/internal/mongodump"
@@ -148,6 +150,9 @@ func (p *Parsed) BuildUnf(site Site, version string, timestampMillis int64, extr
 	}
 	files = append(files, extras...)
 	for _, f := range files {
+		if unsafeArchiveName(f.Name) {
+			return nil, fmt.Errorf("refusing to write unsafe archive entry name %q into export", f.Name)
+		}
 		w, err := zw.Create(f.Name)
 		if err != nil {
 			return nil, fmt.Errorf("zip create %s: %w", f.Name, err)
@@ -185,10 +190,10 @@ func (p *Parsed) buildSiteDump(site Site) ([]byte, error) {
 	var gz bytes.Buffer
 	gw := gzip.NewWriter(&gz)
 	if _, err := gw.Write(stream.Bytes()); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gzip write site dump: %w", err)
 	}
 	if err := gw.Close(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gzip close site dump: %w", err)
 	}
 	return gz.Bytes(), nil
 }
@@ -200,6 +205,23 @@ func writeSelect(buf *bytes.Buffer, collection string) error {
 	}
 	buf.Write(b)
 	return nil
+}
+
+// unsafeArchiveName reports whether a zip entry name would escape the archive
+// root when later extracted (path traversal or an absolute path). Extra files
+// are copied from the source backup with backup-derived names, so a crafted
+// backup must not be able to bake a "../"-bearing entry into an exported .unf.
+func unsafeArchiveName(name string) bool {
+	if name == "" {
+		return true
+	}
+	// Normalize Windows separators so "..\.." is caught alongside "../..".
+	normalized := strings.ReplaceAll(name, `\`, "/")
+	if strings.HasPrefix(normalized, "/") { // absolute path
+		return true
+	}
+	clean := path.Clean(normalized)
+	return clean == ".." || strings.HasPrefix(clean, "../")
 }
 
 // valueToString mirrors JavaScript String(v) for the id fields we key on:

@@ -51,3 +51,29 @@ func TestRepairEOCDRejectsNonZip(t *testing.T) {
 		t.Error("expected error when no EOCD signature is present")
 	}
 }
+
+// TestRepairEOCDNoPanicOnTruncatedCentralHeader guards the fixed out-of-range
+// panic: a spurious central-directory signature (PK\x01\x02) sitting within the
+// fixed 46-byte header window before the EOCD must yield a clean error, not a
+// slice-bounds panic. Reachable on any crafted/corrupt .unf (keys are public).
+func TestRepairEOCDNoPanicOnTruncatedCentralHeader(t *testing.T) {
+	// [0..3] central sig, [8..11] EOCD sig -> end=8, then buffer ends well
+	// before the 46-byte central header could be read.
+	data := []byte{
+		0x50, 0x4b, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00,
+		0x50, 0x4b, 0x05, 0x06, 0x00, 0x00,
+	}
+	if _, err := repairEOCD(data); err == nil {
+		t.Error("expected a clean error for a truncated central-directory header")
+	}
+}
+
+// TestAllIndexesOfIncludesFinalPosition pins the off-by-one fix: a signature at
+// the last valid index len(b)-len(sig) must be reported.
+func TestAllIndexesOfIncludesFinalPosition(t *testing.T) {
+	b := []byte{0x00, 0x00, 0x50, 0x4b, 0x01, 0x02}
+	got := allIndexesOf(b, sigCentral)
+	if len(got) != 1 || got[0] != 2 {
+		t.Errorf("allIndexesOf = %v, want [2] (match at final position)", got)
+	}
+}

@@ -122,6 +122,34 @@ func TestBuildUnfExportsOnlySelectedSite(t *testing.T) {
 	}
 }
 
+func TestBuildUnfRejectsUnsafeExtraName(t *testing.T) {
+	a, b := bson.NewObjectID(), bson.NewObjectID()
+	parsed, err := siteexport.Parse(buildDump(t, a, b))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	site, err := parsed.FindSite("alpha")
+	if err != nil {
+		t.Fatalf("FindSite: %v", err)
+	}
+
+	unsafe := []string{"../evil", "sites/../../etc/passwd", "/abs/path", `..\..\win`}
+	for _, name := range unsafe {
+		t.Run(name, func(t *testing.T) {
+			extras := []siteexport.Extra{{Name: name, Data: []byte("x")}}
+			if _, err := parsed.BuildUnf(site, "9.0.0", 1721400000000, extras); err == nil {
+				t.Errorf("BuildUnf accepted unsafe extra name %q", name)
+			}
+		})
+	}
+
+	// A legitimately nested (non-escaping) name must still be accepted.
+	safe := []siteexport.Extra{{Name: "sites/alpha/floor.png", Data: []byte("x")}}
+	if _, err := parsed.BuildUnf(site, "9.0.0", 1721400000000, safe); err != nil {
+		t.Errorf("BuildUnf rejected a safe nested extra name: %v", err)
+	}
+}
+
 func TestFindSiteErrors(t *testing.T) {
 	a, b := bson.NewObjectID(), bson.NewObjectID()
 	parsed, err := siteexport.Parse(buildDump(t, a, b))
