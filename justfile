@@ -77,6 +77,8 @@ fmt:
 tidy:
     {{ mise_exec }} go mod tidy
 
+alias ci-check := check
+
 # Full local gate before pushing: lint + vulncheck + test + build
 [group('ci')]
 check: lint vulncheck test build
