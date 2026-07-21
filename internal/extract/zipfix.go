@@ -44,8 +44,10 @@ func repairEOCD(data []byte) ([]byte, error) {
 			// A central-directory header is a fixed 46 bytes before its
 			// variable name/extra/comment fields. Bail out if the fixed header
 			// would run past the buffer so the length-field reads below can
-			// never slice out of range on a crafted or truncated archive; the
-			// outer loop then falls through to the contiguous-directory error.
+			// never slice out of range on a crafted or truncated archive. The
+			// break rejects this start candidate; the outer loop tries the next
+			// one, and only after all candidates are exhausted does repairEOCD
+			// return the contiguous-directory error.
 			if s+46 > len(data) {
 				break
 			}

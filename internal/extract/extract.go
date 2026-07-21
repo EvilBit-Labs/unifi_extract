@@ -45,8 +45,13 @@ const unifiIVSize = 16
 // entry, a tar entry, or a gzip stream). UniFi backups decrypt with static,
 // published keys, so a crafted archive can otherwise decompression-bomb the
 // process to OOM. This ceiling is far above any real backup while still
-// bounding the allocation. Mirrors mongodump's per-document maxDocSize.
-const maxDecompressedSize = 4 << 30 // 4 GiB
+// bounding the allocation. It follows the same defense-in-depth pattern as
+// mongodump's maxDocSize, at a different magnitude for a different structure.
+//
+// It is a var rather than a const only so tests can lower it to exercise the
+// ceiling end-to-end without allocating gigabytes; production never reassigns
+// it.
+var maxDecompressedSize int64 = 4 << 30 // 4 GiB
 
 // readAllLimited reads r fully but fails once the output would exceed max
 // bytes, guarding against decompression bombs instead of using an unbounded

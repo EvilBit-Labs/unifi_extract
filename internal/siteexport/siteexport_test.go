@@ -133,7 +133,10 @@ func TestBuildUnfRejectsUnsafeExtraName(t *testing.T) {
 		t.Fatalf("FindSite: %v", err)
 	}
 
-	unsafe := []string{"../evil", "sites/../../etc/passwd", "/abs/path", `..\..\win`}
+	unsafe := []string{
+		"", "../evil", "sites/../../etc/passwd", "/abs/path", `..\..\win`,
+		`C:\Windows\win.ini`, "C:evil.dll", `\\server\share\x`,
+	}
 	for _, name := range unsafe {
 		t.Run(name, func(t *testing.T) {
 			extras := []siteexport.Extra{{Name: name, Data: []byte("x")}}
