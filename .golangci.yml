@@ -116,7 +116,7 @@ linters:
     exhaustive:
       check:
         - switch
-        - map
+        - mapliteral
       default-signifies-exhaustive: true
     funcorder:
       struct-method: false
@@ -177,7 +177,9 @@ formatters:
   settings:
     gofumpt:
       module-path: "github.com/EvilBit-Labs/unifi_extract"
-      extra-rules: true
+      extra:
+        group-params: true
+        clothe-returns: true
     golines:
       max-len: 120
   exclusions:
