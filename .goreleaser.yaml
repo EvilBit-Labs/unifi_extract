@@ -150,7 +150,7 @@ homebrew_casks:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Casks
     homepage: https://github.com/EvilBit-Labs/unifi_extract
-    description: "Offline CLI to decrypt and explore UniFi backup files (.unf/.unifi)"
+    description: "Offline CLI to decrypt and explore UniFi backup files (.unf/.unifi/.tar.crypted)"
     binaries:
       - unifi-extract
     commit_author:

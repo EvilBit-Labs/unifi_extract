@@ -57,7 +57,8 @@ type commonFlags struct {
 func addCommonFlags(cmd *cobra.Command) *commonFlags {
 	f := &commonFlags{}
 	cmd.Flags().StringVarP(&f.out, "out", "o", "", "output path (file or directory, per command)")
-	cmd.Flags().StringVar(&f.kind, "type", "", `force format: "unf" or "unifi" (default: by extension)`)
+	cmd.Flags().
+		StringVar(&f.kind, "type", "", `force format: "unf" or "unifi" (default: by extension, then by content)`)
 	return f
 }
 

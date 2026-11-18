@@ -10,14 +10,18 @@ import (
 	"strings"
 )
 
+// consoleDownloadExt is the two-part extension of a console backup download.
+const consoleDownloadExt = ".tar.crypted"
+
 // defaultName derives an output name from the input path and a new suffix,
 // dropping the original extension. e.g. ("site.unf", ".zip") -> "site.zip".
+// The two-part .tar.crypted is dropped whole, so the result is not "x.tar.tar".
 func defaultName(file, suffix string) string {
 	base := filepath.Base(file)
-	if ext := filepath.Ext(base); ext != "" {
-		base = strings.TrimSuffix(base, ext)
+	if strings.HasSuffix(strings.ToLower(base), consoleDownloadExt) {
+		return base[:len(base)-len(consoleDownloadExt)] + suffix
 	}
-	return base + suffix
+	return strings.TrimSuffix(base, filepath.Ext(base)) + suffix
 }
 
 // safeJoin joins an archive entry name onto dir while preventing path

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
@@ -115,5 +116,67 @@ func TestInfoWrongTypeFails(t *testing.T) {
 	root.SetArgs([]string{"info", buildUnfFile(t), "--type", "unifi"})
 	if err := root.Execute(); err == nil {
 		t.Error("expected error when forcing wrong --type")
+	}
+}
+
+// buildConsoleFile writes a minimal console backup (tar -> gzip -> AES-256
+// with a leading IV) under the given file name and returns its path.
+func buildConsoleFile(t *testing.T, name string) string {
+	t.Helper()
+	version := []byte("9.0.114")
+	var tbuf bytes.Buffer
+	tw := tar.NewWriter(&tbuf)
+	hdr := &tar.Header{Name: "backup/network/version", Mode: 0o600, Size: int64(len(version)), Typeflag: tar.TypeReg}
+	if err := tw.WriteHeader(hdr); err != nil {
+		t.Fatalf("tar header: %v", err)
+	}
+	if _, err := tw.Write(version); err != nil {
+		t.Fatalf("tar write: %v", err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatalf("tar close: %v", err)
+	}
+	var gbuf bytes.Buffer
+	gw := gzip.NewWriter(&gbuf)
+	if _, err := gw.Write(tbuf.Bytes()); err != nil {
+		t.Fatalf("gzip write: %v", err)
+	}
+	if err := gw.Close(); err != nil {
+		t.Fatalf("gzip close: %v", err)
+	}
+	iv := []byte("0123456789abcdef")
+	ct, err := crypto.EncryptCBC(gbuf.Bytes(), crypto.MustHex(crypto.UnifiKeyHex), iv)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, append(append([]byte{}, iv...), ct...), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	return path
+}
+
+func TestConsoleDownloadCommands(t *testing.T) {
+	src := buildConsoleFile(t, "unifi_os_backup_1_v2.tar.crypted")
+
+	out := run(t, "info", src)
+	for _, want := range []string{"unifi", "9.0.114"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("info output missing %q; got:\n%s", want, out)
+		}
+	}
+
+	// With no -o, output names drop the whole .tar.crypted suffix.
+	dir := t.TempDir()
+	t.Chdir(dir)
+	run(t, "decrypt", src)
+	if _, err := os.Stat(filepath.Join(dir, "unifi_os_backup_1_v2.tar")); err != nil {
+		t.Errorf("decrypt default output: %v", err)
+	}
+	run(t, "extract", src)
+	if _, err := os.Stat(
+		filepath.Join(dir, "unifi_os_backup_1_v2_extracted", "backup", "network", "version"),
+	); err != nil {
+		t.Errorf("extract default output: %v", err)
 	}
 }

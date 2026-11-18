@@ -12,6 +12,9 @@ func TestDefaultName(t *testing.T) {
 		{"backup.unf", ".zip", "backup.zip"},
 		{"/a/b/console.unifi", ".tar", "console.tar"},
 		{"noext", "_extracted", "noext_extracted"},
+		{"unifi_os_backup_1_v2.tar.crypted", ".tar", "unifi_os_backup_1_v2.tar"},
+		{"/a/b/unifi_os_backup_1_v2.TAR.CRYPTED", "_extracted", "unifi_os_backup_1_v2_extracted"},
+		{"backup.crypted", ".tar", "backup.tar"},
 	}
 	for _, c := range cases {
 		if got := defaultName(c.file, c.suffix); got != c.want {
