@@ -77,6 +77,9 @@ func newDecryptCmd() *cobra.Command {
 		if out == "" {
 			out = defaultName(args[0], b.ContainerExt)
 		}
+		if err := refuseInputOverwrite(args[0], out); err != nil {
+			return err
+		}
 		if err := os.WriteFile(out, b.Container, 0o600); err != nil {
 			return err
 		}
@@ -154,6 +157,9 @@ func newMongoCmd() *cobra.Command {
 			return nil
 		})
 		if err != nil {
+			return err
+		}
+		if err := refuseInputOverwrite(args[0], f.out); err != nil {
 			return err
 		}
 		return writeOut(f.out, cmd.OutOrStdout(), buf.Bytes(), cmd.ErrOrStderr())
