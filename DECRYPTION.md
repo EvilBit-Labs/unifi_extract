@@ -1,7 +1,7 @@
 # UniFi Backup Decryption — Complete Reference
 
-This document records how UniFi backup files (`.unf`, and `.unifi` / `.tar.crypted`) are encrypted
-and how to decrypt them. The scheme was reconstructed by analyzing the
+This document records how UniFi backup files (`.unf` and `.unifi`, the latter
+also distributed as `.tar.crypted`) are encrypted and how to decrypt them. The scheme was reconstructed by analyzing the
 client-side decryption logic of a browser-based UniFi backup explorer and
 verified against real backup files.
 

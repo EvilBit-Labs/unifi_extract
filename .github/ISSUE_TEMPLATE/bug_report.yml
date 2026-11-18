@@ -72,7 +72,7 @@ body:
       options:
         - .unf site export
         - .unf autobackup
-        - .unifi UniFi OS console backup
+        - .unifi / .tar.crypted UniFi OS console backup
         - Not applicable
     validations:
       required: false

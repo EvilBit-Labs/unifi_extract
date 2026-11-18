@@ -6,8 +6,8 @@
 //   - .unf   site export or classic controller autobackup.
 //     AES-128-CBC (static key + IV) -> ZIP archive.
 //
-//   - .unifi UniFi OS / UCore console full backup; a console download is
-//     named unifi_os_backup_<...>.tar.crypted.
+//   - .unifi UniFi OS / UCore console full backup; console downloads end
+//     in .tar.crypted.
 //     AES-256-CBC (static key, IV = first 16 bytes) -> gzip -> tar archive.
 //
 // After decryption both are reduced to a list of Entry values so callers can
@@ -86,7 +86,8 @@ type Backup struct {
 }
 
 // Open reads and decrypts the backup at path. The format is chosen by file
-// extension; pass forceKind to override detection (empty string = auto).
+// extension, or by content when the extension is not a known one; pass
+// forceKind to override detection (empty string = auto).
 func Open(path string, forceKind Kind) (*Backup, error) {
 	data, err := readFile(path)
 	if err != nil {
@@ -101,26 +102,45 @@ func Open(path string, forceKind Kind) (*Backup, error) {
 		return openUnf(data)
 	case KindUnifi:
 		return openUnifi(data)
+	case "":
+		return openByContent(path, data)
 	default:
-		return nil, fmt.Errorf(
-			"unknown backup type for %q (expected .unf, .unifi or .tar.crypted; use --type to override)",
-			path,
-		)
+		return nil, fmt.Errorf("unsupported backup kind %q (want %q or %q)", kind, KindUnf, KindUnifi)
 	}
 }
 
-// detectKind picks a format from the filename extension, defaulting to .unf.
+// detectKind picks a format from the filename extension, or returns "" when
+// the extension is not a known one.
 func detectKind(path string) Kind {
 	switch strings.ToLower(filepath.Ext(path)) {
-	// A console download is named unifi_os_backup_<...>.tar.crypted; it is
-	// the same container as .unifi.
+	// Console downloads end in .tar.crypted; filepath.Ext yields only
+	// ".crypted", so any *.crypted name is treated as .unifi.
 	case ".unifi", ".crypted":
 		return KindUnifi
 	case ".unf":
 		return KindUnf
 	default:
-		return KindUnf
+		return ""
 	}
+}
+
+// openByContent handles a file whose name gives no format (renamed, or a
+// partial-download suffix) by trying each format in turn. Neither format has
+// magic bytes before decryption, so a successful open is the only test: the
+// wrong key yields noise that fails the ZIP or gzip structure checks.
+func openByContent(path string, data []byte) (*Backup, error) {
+	b, unfErr := openUnf(data)
+	if unfErr == nil {
+		return b, nil
+	}
+	b, unifiErr := openUnifi(data)
+	if unifiErr == nil {
+		return b, nil
+	}
+	return nil, fmt.Errorf(
+		"%q is not a recognised UniFi backup; use --type to force a format (as .unf: %w; as .unifi: %w)",
+		path, unfErr, unifiErr,
+	)
 }
 
 // openUnf decrypts a .unf file to a repaired ZIP and lists its entries.

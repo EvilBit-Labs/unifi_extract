@@ -13,7 +13,7 @@
 ## Project Overview
 
 **Description**: `unifi-extract` is an offline CLI that decrypts and explores UniFi
-backup files (`.unf` site exports/autobackups and `.unifi` UniFi OS console
+backup files (`.unf` site exports/autobackups and `.unifi` / `.tar.crypted` UniFi OS console
 backups). It decrypts the archives, lists and extracts their contents, decodes
 the embedded MongoDB dump to NDJSON, and exports individual sites as importable
 `.unf` files — all locally, with no network access. UniFi backups use static,

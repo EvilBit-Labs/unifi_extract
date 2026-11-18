@@ -7,6 +7,7 @@ import (
 	"compress/gzip"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/EvilBit-Labs/unifi_extract/internal/crypto"
@@ -193,11 +194,101 @@ func TestDetectKind(t *testing.T) {
 		{"CONSOLE.UNIFI", KindUnifi},
 		{"unifi_os_backup_1794797558068_575f4cbf_v2.tar.crypted", KindUnifi},
 		{"/some/dir/backup.TAR.CRYPTED", KindUnifi},
-		{"no-extension", KindUnf},
+		{"backup.crypted", KindUnifi},
+		{"no-extension", ""},
+		{"backup.zip", ""},
+		{"backup.tar.crypted.download", ""},
 	}
 	for _, tt := range tests {
 		if got := detectKind(tt.path); got != tt.want {
 			t.Errorf("detectKind(%q) = %q, want %q", tt.path, got, tt.want)
 		}
+	}
+}
+
+// consoleFiles is a minimal console-backup payload for detection tests.
+func consoleFiles() map[string][]byte {
+	return map[string][]byte{"backup/network/version": []byte("9.0.114")}
+}
+
+func TestOpenTarCryptedRoundTrip(t *testing.T) {
+	path := writeTemp(t, "unifi_os_backup_1_v2.tar.crypted", buildUnifi(t, consoleFiles()))
+
+	b, err := Open(path, "")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if b.Kind != KindUnifi {
+		t.Errorf("Kind = %q, want unifi", b.Kind)
+	}
+	if v := readTrim(b.Find("backup/network/version")); v != "9.0.114" {
+		t.Errorf("version = %q", v)
+	}
+}
+
+func TestOpenDetectsUnknownExtensionByContent(t *testing.T) {
+	unf := buildUnf(t, map[string][]byte{"version": []byte("9.0.114")})
+	console := buildUnifi(t, consoleFiles())
+	tests := []struct {
+		name string
+		data []byte
+		want Kind
+	}{
+		{"backup.bin", unf, KindUnf},
+		{"backup.bin", console, KindUnifi},
+		{"no-extension", console, KindUnifi},
+		{"unifi_os_backup_1_v2.tar.crypted.download", console, KindUnifi},
+	}
+	for _, tt := range tests {
+		b, err := Open(writeTemp(t, tt.name, tt.data), "")
+		if err != nil {
+			t.Errorf("Open(%q as %s): %v", tt.name, tt.want, err)
+			continue
+		}
+		if b.Kind != tt.want {
+			t.Errorf("Open(%q) Kind = %q, want %q", tt.name, b.Kind, tt.want)
+		}
+	}
+}
+
+func TestOpenUnknownExtensionRejectsNonBackup(t *testing.T) {
+	path := writeTemp(t, "notes.bin", bytes.Repeat([]byte{0x41}, 64))
+
+	_, err := Open(path, "")
+	if err == nil {
+		t.Fatal("expected error for a file that is neither backup format")
+	}
+	for _, want := range []string{".unf", ".unifi", "--type"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q missing %q", err, want)
+		}
+	}
+}
+
+func TestOpenForcedKindOverridesDetection(t *testing.T) {
+	console := buildUnifi(t, consoleFiles())
+
+	// A known extension is trusted: no content fallback, and force wins.
+	if _, err := Open(writeTemp(t, "x.tar.crypted", console), KindUnf); err == nil {
+		t.Error("expected error forcing unf on a console backup")
+	}
+	if _, err := Open(writeTemp(t, "x.unf", console), ""); err == nil {
+		t.Error("expected error: a .unf name must not fall back to the console format")
+	}
+	b, err := Open(writeTemp(t, "x.unf", console), KindUnifi)
+	if err != nil {
+		t.Fatalf("Open forced unifi: %v", err)
+	}
+	if b.Kind != KindUnifi {
+		t.Errorf("Kind = %q, want unifi", b.Kind)
+	}
+}
+
+func TestOpenRejectsUnsupportedKind(t *testing.T) {
+	path := writeTemp(t, "x.unf", buildUnf(t, map[string][]byte{"version": []byte("1")}))
+
+	_, err := Open(path, Kind("bogus"))
+	if err == nil || !strings.Contains(err.Error(), `unsupported backup kind "bogus"`) {
+		t.Errorf("Open with bogus kind: err = %v", err)
 	}
 }

@@ -32,7 +32,7 @@ controller. This tool reads the archive directly, which helps when you want to:
 - **`.unf`** site exports and classic controller autobackups (AES-128-CBC → ZIP).
 - **`.unifi` / `.tar.crypted`** UniFi OS / UCore console full backups
   (AES-256-CBC → gzip → tar). A console download is named
-  `unifi_os_backup_<...>.tar.crypted`; both names are the same format.
+  `unifi_os_backup_<...>.tar.crypted`; both extensions are the same format.
 - Decode the embedded MongoDB dump to newline-delimited JSON.
 - Extract every file, including the UCore PostgreSQL `pg_dump` for `pg_restore`.
 - Runs offline; the binary never opens a network connection.
@@ -65,7 +65,7 @@ Commands:
 
 Flags:
   -o, --out string    Output path (file or directory, per command)
-      --type string   Force format: "unf" or "unifi" (default: by extension)
+      --type string   Force format: "unf" or "unifi" (default: by extension, then by content)
 ```
 
 ### Examples
