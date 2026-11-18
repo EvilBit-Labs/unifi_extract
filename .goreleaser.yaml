@@ -63,7 +63,7 @@ archives:
       - DECRYPTION.md
     # Preserve commit timestamp for reproducibility
     builds_info:
-      mtime: "{{ .CommitTimestamp }}"
+      mtime: "{{ .CommitDate }}"
 
 # Checksum configuration
 # https://goreleaser.com/customization/checksum/
