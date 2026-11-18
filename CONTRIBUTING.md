@@ -115,4 +115,5 @@ open an issue first to discuss the approach.
 Releases are tagged `vMAJOR.MINOR.PATCH` (semver) and built by GoReleaser via
 `.github/workflows/release.yml` — signed with Cosign, with SBOMs and build
 provenance attached. Maintainers cut releases; contributors don't need to do
-anything beyond landing their PRs.
+anything beyond landing their PRs. The maintainer procedure is in
+[RELEASING.md](RELEASING.md).
