@@ -64,7 +64,7 @@ func writeInfo(w io.Writer, file string, b *extract.Backup) error {
 func newDecryptCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "decrypt <backup-file>",
-		Short: "Write the raw decrypted container (.zip for .unf, .tar for .unifi)",
+		Short: "Write the raw decrypted container (.zip for .unf, .tar for .unifi/.tar.crypted)",
 		Args:  cobra.ExactArgs(1),
 	}
 	f := addCommonFlags(cmd)

@@ -12,14 +12,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const longDescription = `unifi-extract decrypts and explores UniFi backup files (.unf and .unifi).
+const longDescription = `unifi-extract decrypts and explores UniFi backup files (.unf, .unifi and .tar.crypted).
 
 Everything runs locally: the tool never touches the network, so backup
 contents never leave your machine.
 
 Formats:
   .unf    site export or classic controller autobackup (AES-128-CBC -> zip)
-  .unifi  UniFi OS / UCore console full backup (AES-256-CBC -> gzip -> tar)`
+  .unifi  UniFi OS / UCore console full backup (AES-256-CBC -> gzip -> tar);
+          console downloads are named .tar.crypted`
 
 // Execute builds the command tree and runs it through Fang.
 func Execute(ctx context.Context, version string) error {
@@ -29,7 +30,7 @@ func Execute(ctx context.Context, version string) error {
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "unifi-extract",
-		Short: "Decrypt and explore UniFi backup files (.unf, .unifi)",
+		Short: "Decrypt and explore UniFi backup files (.unf, .unifi, .tar.crypted)",
 		Long:  longDescription,
 		Example: `  unifi-extract info backup.unf
   unifi-extract decrypt backup.unf -o backup.zip
