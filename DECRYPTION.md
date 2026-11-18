@@ -1,6 +1,6 @@
 # UniFi Backup Decryption — Complete Reference
 
-This document records how UniFi backup files (`.unf` and `.unifi`) are encrypted
+This document records how UniFi backup files (`.unf`, and `.unifi` / `.tar.crypted`) are encrypted
 and how to decrypt them. The scheme was reconstructed by analyzing the
 client-side decryption logic of a browser-based UniFi backup explorer and
 verified against real backup files.
@@ -15,6 +15,10 @@ can decrypt it; treat backup files as sensitive.
 | -------- | ------------------------------------ | ---------------------- | ----------------- | -------------------------- | ----------------------- |
 | `.unf`   | Site export / classic autobackup     | AES-128-CBC, NoPadding | static (16 bytes) | static (16 bytes)          | ZIP                     |
 | `.unifi` | UniFi OS / UCore full console backup | AES-256-CBC, NoPadding | static (32 bytes) | first 16 bytes of the file | gzip → tar              |
+
+A console backup downloaded from UniFi OS is named
+`unifi_os_backup_<...>.tar.crypted`. It is the same format as `.unifi`, and
+everything below that says `.unifi` applies to it.
 
 Both use **AES in CBC mode with no padding**. The plaintext is stored
 zero-padded to a 16-byte multiple, so decryption must **not** strip PKCS#7

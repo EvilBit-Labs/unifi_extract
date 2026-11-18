@@ -182,3 +182,22 @@ func readTrim(e *Entry) string {
 	}
 	return string(bytes.TrimSpace(e.Data))
 }
+
+func TestDetectKind(t *testing.T) {
+	tests := []struct {
+		path string
+		want Kind
+	}{
+		{"site.unf", KindUnf},
+		{"console.unifi", KindUnifi},
+		{"CONSOLE.UNIFI", KindUnifi},
+		{"unifi_os_backup_1794797558068_575f4cbf_v2.tar.crypted", KindUnifi},
+		{"/some/dir/backup.TAR.CRYPTED", KindUnifi},
+		{"no-extension", KindUnf},
+	}
+	for _, tt := range tests {
+		if got := detectKind(tt.path); got != tt.want {
+			t.Errorf("detectKind(%q) = %q, want %q", tt.path, got, tt.want)
+		}
+	}
+}

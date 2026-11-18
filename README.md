@@ -2,7 +2,7 @@
 
 [![CI][ci-badge]][ci] [![Security][security-badge]][security] [![OpenSSF Scorecard][scorecard-badge]][scorecard] [![Go Reference][goref-badge]][goref] [![Release][release-badge]][release] [![License][license-badge]][license]
 
-Decrypt and explore UniFi backup files (`.unf` and `.unifi`) entirely on your own
+Decrypt and explore UniFi backup files (`.unf`, `.unifi` and `.tar.crypted`) entirely on your own
 machine. No network access, no browser, no data leaving your device.
 
 UniFi backups are encrypted with a static, hard-coded key, not a per-user
@@ -30,7 +30,9 @@ controller. This tool reads the archive directly, which helps when you want to:
 ## Features
 
 - **`.unf`** site exports and classic controller autobackups (AES-128-CBC → ZIP).
-- **`.unifi`** UniFi OS / UCore console full backups (AES-256-CBC → gzip → tar).
+- **`.unifi` / `.tar.crypted`** UniFi OS / UCore console full backups
+  (AES-256-CBC → gzip → tar). A console download is named
+  `unifi_os_backup_<...>.tar.crypted`; both names are the same format.
 - Decode the embedded MongoDB dump to newline-delimited JSON.
 - Extract every file, including the UCore PostgreSQL `pg_dump` for `pg_restore`.
 - Runs offline; the binary never opens a network connection.
@@ -55,7 +57,7 @@ unifi-extract <command> [flags] <backup-file>
 
 Commands:
   info          Summarize a backup (type, version, timestamp, entries, doc count)
-  decrypt       Write the raw decrypted container (.zip for .unf, .tar for .unifi)
+  decrypt       Write the raw decrypted container (.zip for .unf, .tar for .unifi/.tar.crypted)
   extract       Unpack every file from the backup into a directory
   mongo         Decode the MongoDB dump to newline-delimited JSON (NDJSON)
   sites         List the sites contained in a full backup

@@ -6,7 +6,8 @@
 //   - .unf   site export or classic controller autobackup.
 //     AES-128-CBC (static key + IV) -> ZIP archive.
 //
-//   - .unifi UniFi OS / UCore console full backup.
+//   - .unifi UniFi OS / UCore console full backup; a console download is
+//     named unifi_os_backup_<...>.tar.crypted.
 //     AES-256-CBC (static key, IV = first 16 bytes) -> gzip -> tar archive.
 //
 // After decryption both are reduced to a list of Entry values so callers can
@@ -101,14 +102,19 @@ func Open(path string, forceKind Kind) (*Backup, error) {
 	case KindUnifi:
 		return openUnifi(data)
 	default:
-		return nil, fmt.Errorf("unknown backup type for %q (expected .unf or .unifi; use --type to override)", path)
+		return nil, fmt.Errorf(
+			"unknown backup type for %q (expected .unf, .unifi or .tar.crypted; use --type to override)",
+			path,
+		)
 	}
 }
 
 // detectKind picks a format from the filename extension, defaulting to .unf.
 func detectKind(path string) Kind {
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".unifi":
+	// A console download is named unifi_os_backup_<...>.tar.crypted; it is
+	// the same container as .unifi.
+	case ".unifi", ".crypted":
 		return KindUnifi
 	case ".unf":
 		return KindUnf
