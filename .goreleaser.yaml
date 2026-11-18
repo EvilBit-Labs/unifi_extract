@@ -89,7 +89,7 @@ changelog:
       order: 999
   filters:
     exclude:
-      - "^chore(deps)"
+      - '^chore\(deps\)'
       - "^docs"
       - "^test"
       - "^style"

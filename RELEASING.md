@@ -69,14 +69,16 @@ gh run watch <run-id> --exit-status
 gh release view v1.2.0
 ```
 
-Then check the published artifacts:
+Then check the published artifacts. Stop at the first check that fails: do not
+extract or run a binary whose checksum, signature, or provenance did not verify.
 
 ```bash
 gh release download v1.2.0 --dir /tmp/unifi-extract-v1.2.0
 cd /tmp/unifi-extract-v1.2.0
 
-# Checksums
-sha256sum -c unifi-extract_checksums.txt --ignore-missing
+# Checksums: every file listed must be present and match
+sha256sum -c unifi-extract_checksums.txt      # Linux (GNU coreutils)
+shasum -a 256 -c unifi-extract_checksums.txt  # macOS
 
 # Cosign keyless signature
 cosign verify-blob \
@@ -88,7 +90,8 @@ cosign verify-blob \
 # Build provenance
 gh attestation verify unifi-extract_checksums.txt --repo EvilBit-Labs/unifi_extract
 
-# Binary reports the new version
+# Binary reports the new version. Use the archive for the machine you are on:
+# unifi-extract_<Darwin|Linux>_<arm64|x86_64>.tar.gz
 tar -xzf unifi-extract_Darwin_arm64.tar.gz && ./unifi-extract --version
 ```
 
@@ -97,14 +100,29 @@ tar -xzf unifi-extract_Darwin_arm64.tar.gz && ./unifi-extract --version
 
 ## If the release workflow fails
 
-A failed run publishes nothing, but the tag is already public. Do not move or
-delete it: a rewritten tag breaks anyone (including the Go module proxy) who
-already fetched it. Fix the cause in a PR, merge it, and tag the next patch
-version. The failed tag stays as a tag with no release.
+The tag is already public either way. Do not move or delete it: a rewritten tag
+breaks anyone (including the Go module proxy) who already fetched it.
+
+A failed run may still have published. The `goreleaser` job creates the GitHub
+Release and pushes the Homebrew cask; the `provenance` and `verify` jobs run
+after it. Find out what is public before deciding how to recover:
 
 ```bash
+gh run view <run-id>                # which job failed
 gh run view <run-id> --log-failed
+gh release view v1.2.0              # does a release exist, and with which assets?
 ```
+
+Also check `EvilBit-Labs/homebrew-tap` for a cask commit for the tag.
+
+- **Nothing was published** (the `goreleaser` job failed before the publish
+  step): fix the cause in a PR, merge it, and tag the next patch version. The
+  failed tag stays as a tag with no release.
+- **A release was published and a later job failed**: the release is live,
+  possibly without provenance. If the failure was transient, re-run the failed
+  jobs with `gh run rerun <run-id> --failed`, then run the verification above.
+  Otherwise fix the cause and tag the next patch version, and decide what to do
+  with the release and cask that are already public before you tag.
 
 ## Release artifacts
 
