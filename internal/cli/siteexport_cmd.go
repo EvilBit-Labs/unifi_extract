@@ -75,6 +75,9 @@ func newSiteExportCmd() *cobra.Command {
 		if out == "" {
 			out = sanitizeFilename(target.Name) + ".unf"
 		}
+		if err := refuseInputOverwrite(args[0], out); err != nil {
+			return err
+		}
 		if err := os.WriteFile(out, unf, 0o600); err != nil {
 			return err
 		}

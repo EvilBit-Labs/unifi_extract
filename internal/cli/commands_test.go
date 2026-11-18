@@ -180,3 +180,102 @@ func TestConsoleDownloadCommands(t *testing.T) {
 		t.Errorf("extract default output: %v", err)
 	}
 }
+
+func TestDecryptRefusesToOverwriteInput(t *testing.T) {
+	// A console backup renamed to backup.tar is detected by content, and its
+	// default output name is also backup.tar.
+	src := buildConsoleFile(t, "backup.tar")
+	before, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("read input: %v", err)
+	}
+	t.Chdir(filepath.Dir(src))
+
+	cases := [][]string{
+		{"decrypt", "backup.tar"},
+		{"decrypt", "backup.tar", "-o", src},
+	}
+	// On a case-insensitive filesystem BACKUP.tar names the input too.
+	if isSameFile(src, "BACKUP.tar") {
+		cases = append(cases, []string{"decrypt", src, "-o", "BACKUP.tar"})
+	}
+	for _, args := range cases {
+		root := newRootCmd()
+		root.SetOut(new(bytes.Buffer))
+		root.SetErr(new(bytes.Buffer))
+		root.SetArgs(args)
+		err := root.Execute()
+		if err == nil || !strings.Contains(err.Error(), "input file") {
+			t.Errorf("%v: err = %v, want refusal to overwrite the input", args, err)
+		}
+		after, readErr := os.ReadFile(src)
+		if readErr != nil {
+			t.Fatalf("%v: read input: %v", args, readErr)
+		}
+		if !bytes.Equal(before, after) {
+			t.Fatalf("%v: input file was overwritten", args)
+		}
+	}
+}
+
+func TestCommandsRefuseOutputOverInput(t *testing.T) {
+	full := buildFullBackupUnf(t, bson.NewObjectID(), bson.NewObjectID())
+	plain := buildUnfFile(t)
+	tests := []struct {
+		src  string
+		args []string
+	}{
+		{plain, []string{"mongo", plain, "-o", plain}},
+		{full, []string{"site-export", full, "--site", "alpha", "-o", full}},
+	}
+	for _, tt := range tests {
+		before, err := os.ReadFile(tt.src)
+		if err != nil {
+			t.Fatalf("read input: %v", err)
+		}
+		root := newRootCmd()
+		root.SetOut(new(bytes.Buffer))
+		root.SetErr(new(bytes.Buffer))
+		root.SetArgs(tt.args)
+		if err := root.Execute(); err == nil || !strings.Contains(err.Error(), "input file") {
+			t.Errorf("%v: err = %v, want refusal to overwrite the input", tt.args[0], err)
+		}
+		after, err := os.ReadFile(tt.src)
+		if err != nil {
+			t.Fatalf("read input: %v", err)
+		}
+		if !bytes.Equal(before, after) {
+			t.Errorf("%v: input file was overwritten", tt.args[0])
+		}
+	}
+}
+
+func TestSiteExportDefaultNameDoesNotOverwriteInput(t *testing.T) {
+	// A full backup named after one of its sites: the default export name
+	// (<site>.unf) is the input itself.
+	full := buildFullBackupUnf(t, bson.NewObjectID(), bson.NewObjectID())
+	src := filepath.Join(filepath.Dir(full), "alpha.unf")
+	if err := os.Rename(full, src); err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+	before, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("read input: %v", err)
+	}
+	t.Chdir(filepath.Dir(src))
+
+	root := newRootCmd()
+	root.SetOut(new(bytes.Buffer))
+	root.SetErr(new(bytes.Buffer))
+	root.SetArgs([]string{"site-export", "alpha.unf", "--site", "alpha"})
+	if err := root.Execute(); err == nil || !strings.Contains(err.Error(), "input file") {
+		t.Errorf("err = %v, want refusal to overwrite the input", err)
+	}
+	after, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("read input: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Error("input file was overwritten")
+	}
+}
